@@ -1,0 +1,118 @@
+name: Deploy Site
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+env:
+  TF_INPUT : "0"
+  TF_IN_AUTOMATION : "TRUE"
+  TF_LOG : "WARN"
+jobs:
+  Initialize:
+    name: checkout
+    runs-on: Agent007
+    permissions:
+      id-token: write
+    steps:
+    - name: Check AWS Cli
+      run: aws --version
+    - name: Check Terraform
+      run: terraform --version
+    - name: Check sqlcmd
+      run: sqlcmd --version
+
+  deploy_to_test:
+    name: Deploy Test
+    if: github.event.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+    runs-on: Agent007
+    needs: Initialize
+    env:
+      TF_WORKSPACE: "test"
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_TEST }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_TEST }}
+        aws-region: us-east-1
+
+    - name: Terraform init
+      run: terraform init -plugin-dir=/usr/lib/custom-terraform-plugins
+    - name: Terraform Format
+      id: fmt
+      run: terraform fmt -check
+   #  - name: Terraform Workspace
+   #    id: Workspace
+   #    run: terraform workspace new test
+   # - name: Check on workspace failures
+   #    if: steps.Workspace.outcome != 'success'
+   #    run: terraform workspace select test
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+    - name: Terraform Plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan -no-color
+    #   continue-on-error: true
+    # - name: Terraform Plan Status
+    #   if: steps.plan.outcome == 'failure'
+    #   run: exit 1
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve
+
+  deploy_to_production:
+    name: Deploy Production
+    if: github.event.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+    runs-on: Agent007
+    # environment:
+    #   name: production
+    needs: deploy_to_test
+    env:
+      TF_WORKSPACE: "production"
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+        aws-region: us-east-1
+
+    - name: Terraform init
+      run: terraform init -plugin-dir=/usr/lib/custom-terraform-plugins
+    - name: Terraform Format
+      id: fmt
+      run: terraform fmt -check
+   #  - name: Terraform Workspace
+   #    id: Workspace
+   #    run: terraform workspace new test
+   # - name: Check on workspace failures
+   #    if: steps.Workspace.outcome != 'success'
+   #    run: terraform workspace select test
+    - name: Terraform Validate
+      id: validate
+      run: terraform validate -no-color
+    - name: Terraform Plan
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan -no-color
+    #   continue-on-error: true
+    # - name: Terraform Plan Status
+    #   if: steps.plan.outcome == 'failure'
+    #   run: exit 1
+    - name: Terraform Apply
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: terraform apply -auto-approve
