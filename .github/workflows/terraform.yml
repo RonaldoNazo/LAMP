@@ -22,8 +22,7 @@ jobs:
       run: aws --version
     - name: Check Terraform
       run: terraform --version
-    - name: Check sqlcmd
-      run: sqlcmd --version
+
 
   deploy_to_test:
     name: Deploy Test
