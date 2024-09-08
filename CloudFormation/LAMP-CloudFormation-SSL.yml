@@ -1,0 +1,359 @@
+Parameters: #Parametrat qe do
+  myKeyPair: 
+    Description: Amazon EC2 Key Pair
+    Type: AWS::EC2::KeyPair::KeyName
+  MasterName: 
+    Description: Amazon RDS Master Name
+    Type: String
+  MasterPassword: 
+    Description: Amazon RDS Master Password
+    Type: String
+    NoEcho: true
+  KmsRdsKey:
+    Description: Enter the CMK from KMS
+    Type: String
+  ELBListenerACM:
+    Description: Amazon ARN of ELB Listener Private Certeficate
+    Type: String
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-02e136e904f3da870
+    us-west-1:
+      AMI: ami-bf5540df
+    eu-west-1:
+      AMI: ami-3bfab942
+    ap-southeast-1:
+      AMI: ami-e2adf99e
+    ap-southeast-2:
+      AMI: ami-43874721
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "VPC-by-CloudFormation"
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties: 
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "Internet Gateway"
+  VPCGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: 
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  VPCSubnetPublic:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "Public Subnet 1"
+      VpcId: !Ref VPC
+      AvailabilityZone: "us-east-1a"
+  VPCSubnetPrivate:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "Private Subnet 1"
+      VpcId: !Ref VPC
+      AvailabilityZone: "us-east-1b"
+  VPCSubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "Public Subnet 2"
+      VpcId: !Ref VPC
+      AvailabilityZone: "us-east-1c"
+  VPCSubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties: 
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "Private Subnet 2"
+      VpcId: !Ref VPC
+      AvailabilityZone: "us-east-1d"
+  VPCRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "VPC-Route-Table"
+      VpcId: !Ref VPC
+  VPCPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+        - 
+          Key: "Name"
+          Value: "VPC-Private-Route-Table"
+      VpcId: !Ref VPC
+  RoutesPublic:
+    Type: AWS::EC2::Route
+    DependsOn : VPCGatewayAttach
+    Properties: 
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref VPCRouteTable
+  SubnetAssociationRouteTable1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref VPCRouteTable
+      SubnetId: !Ref VPCSubnetPublic
+  SubnetAssociationRouteTable2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref VPCRouteTable
+      SubnetId: !Ref VPCSubnetPublic2
+  SubnetAssociationRouteTable3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref VPCPrivateRouteTable
+      SubnetId: !Ref VPCSubnetPrivate
+  SubnetAssociationRouteTable4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: 
+      RouteTableId: !Ref VPCPrivateRouteTable
+      SubnetId: !Ref VPCSubnetPrivate2
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: "RDS-SubnetGr"
+      DBSubnetGroupName: "RDS-SubnetGr"
+      SubnetIds: 
+        - !Ref VPCSubnetPrivate
+        - !Ref VPCSubnetPrivate2
+      Tags: 
+        - Key: "Name"
+          Value: "DataBase Subnet Group"
+  RdsSecGr:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 10.0.0.0/22
+      VpcId: !Ref VPC
+      GroupDescription: "SG for RDS"
+      Tags: 
+        - Key: "Name"
+          Value: "DataBase Security Group"
+  RDS:
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      StorageType: gp2
+      AllocatedStorage: 30 #
+      Engine: mysql #
+      DBInstanceIdentifier: "RonaldoRDS"
+      MasterUsername: !Ref MasterName
+      MasterUserPassword: !Ref MasterPassword #passwordi
+      DBInstanceClass: db.t3.micro
+      MaxAllocatedStorage: 1000
+      KmsKeyId: !Ref KmsRdsKey #Key encryptues per RDS
+      StorageEncrypted: true
+      MultiAZ: false #
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - !Ref RdsSecGr
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Port: 3306
+  LoadBalancer: # Application Load Balancer
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn : VPCGatewayAttach
+    Properties:
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets: 
+        - !Ref VPCSubnetPublic
+        - !Ref VPCSubnetPublic2
+  LoadBalancerListener: # Port 80 Listener for ALB
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80 #http
+      Protocol: HTTP #HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+  LoadBalancerListenerHTTPS: # Port 443 Listener for ALB
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443 #http
+      Protocol: HTTPS #HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+      Certificates:  #####
+       - CertificateArn: !Ref ELBListenerACM
+  LoadBalancerListenerCerteficate: ########
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties: 
+      Certificates: 
+        - CertificateArn: !Ref ELBListenerACM
+      ListenerArn: !Ref LoadBalancerListenerHTTPS
+  TargetGroup: #Target groupi qe do lidhet me ELB
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80 #Porta qe do konektohesh me Ec2 , eshte i ndryshem me Portne e ELB ,pasi mund te kemi kalim Https-Http
+      Protocol: HTTP #protokolli qe do perdores
+      VpcId: !Ref VPC
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: AutoScalingByCF
+      VPCZoneIdentifier: 
+        - !Ref VPCSubnetPublic
+        - !Ref VPCSubnetPublic2
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MinSize: 1
+      DesiredCapacity: 2
+      MaxSize: 3
+      TargetGroupARNs: 
+        - !Ref TargetGroup
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata: 
+      Comment: Install php and httpd
+      AWS::CloudFormation::Init:
+        config: 
+          packages: 
+            yum:
+              httpd: []
+              php: []
+              php-mysql: []
+              php-xml: []
+              php-mbstring: []
+
+          files: 
+            /var/www/html/index.php:
+              content: !Sub |
+                <?php print "Ronaldo eshte Zoti, por shtoi nje /phpMyAdmin nga mbrapa linkut"; ?>
+          services: 
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+    DependsOn: RDS
+    Properties:
+      KeyName: !Ref myKeyPair
+      InstanceType: t2.micro
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdf
+          Ebs:
+            VolumeSize: 50
+            Encrypted: true
+      SecurityGroups:
+        - !Ref EC2SecurityGroup
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - !Ref AWS::Region
+        - AMI
+      UserData:
+        'Fn::Base64': 
+          !Sub |
+            #!/bin/bash -xe                      
+            # Ensure AWS CFN Bootstrap is the latest
+            sudo yum update -y
+            yum install -y aws-cfn-bootstrap
+            # Install the files and packages from the metadata
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource LaunchConfiguration --region ${AWS::Region}
+            sudo amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+            sudo usermod -a -G apache ec2-user
+            sudo su - ec2-user
+            groups
+            sudo chown -R ec2-user:apache /var/www
+            sudo chmod 2775 /var/www
+            find /var/www -type d -exec sudo chmod 2775 {} \;
+            find /var/www -type f -exec sudo chmod 0664 {} \;
+            cd /var/www/html
+            wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz
+            mkdir phpMyAdmin && tar -xvzf phpMyAdmin-latest-all-languages.tar.gz -C phpMyAdmin --strip-components 1
+            rm phpMyAdmin-latest-all-languages.tar.gz
+            sudo cp phpMyAdmin/config.sample.inc.php phpMyAdmin/config.inc.php
+            sed -i 's/localhost/${RDS.Endpoint.Address}/g'  phpMyAdmin/config.inc.php
+            sed -i "s/blowfish_secret'] = ''/blowfish_secret'] = '12345678901234567890123456789012'/g"  phpMyAdmin/config.inc.php
+            sudo chmod 660 phpMyAdmin/config.inc.php
+            sudo systemctl restart httpd
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443 #80
+          ToPort: 443 #80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80 #80
+          ToPort: 80 #80
+          CidrIp: 0.0.0.0/0
+  EC2SecurityGroup: 
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId:
+            !GetAtt
+            - ALBSecurityGroup
+            - GroupId
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId:
+            !GetAtt
+            - ALBSecurityGroup
+            - GroupId
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+  EC2SecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties: 
+      GroupId: !Ref EC2SecurityGroup
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535 
+      SourceSecurityGroupId: !GetAtt EC2SecurityGroup.GroupId
+Outputs:
+  PublicDns:
+    Description: The Public DNS
+    Value: !Sub 'https://${LoadBalancer.DNSName}/phpMyAdmin'
+  RdsEndPoint:
+    Description: The Rds Endpoint
+    Value: !Sub '${RDS.Endpoint.Address}'
