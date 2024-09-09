@@ -2,7 +2,7 @@
 
 This project is a LAMP stack , a two-tier applicaion deplyed in different ways. 
 
-<!-- Check-out my youtube video for more information : [Youtube]() -->
+Check-out my youtube video for more information : [Youtube](https://www.youtube.com/watch?v=8g5dg3ffGOc)
 
 ## Architecture
 ![alt text](terraform_new/LAMP_new.drawio.png "Architecture")
